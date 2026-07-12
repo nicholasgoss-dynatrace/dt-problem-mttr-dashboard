@@ -1,0 +1,147 @@
+{
+  "name": "Problem MTTR Analysis",
+  "type": "dashboard",
+  "content": {
+    "version": 21,
+    "variables": [],
+    "tiles": {
+      "1": {
+        "type": "markdown",
+        "content": "## Problem MTTR Analysis\nTrack **Mean Time to Resolve** for Davis AI-detected problems across your environment. All tiles use the **dashboard time picker** — set to 30–90 days for meaningful trend data. Only **CLOSED**, non-duplicate problems are included in MTTR calculations.\n\n**Categories:** `AVAILABILITY` &nbsp;·&nbsp; `ERROR` &nbsp;·&nbsp; `SLOWDOWN` &nbsp;·&nbsp; `RESOURCE_CONTENTION` &nbsp;·&nbsp; `CUSTOM_ALERT`"
+      },
+      "2": {
+        "type": "data",
+        "title": "Closed Problems",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| summarize total_problems = count()",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": { "showSparkLine": false, "alignment": "center" }
+        },
+        "querySettings": {}
+      },
+      "3": {
+        "type": "data",
+        "title": "Avg MTTR (hours)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize avg_mttr_hours = avg(duration_hours)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": { "showSparkLine": false, "alignment": "center" },
+          "unitsOverrides": [{ "identifier": "avg_mttr_hours", "unitCategory": "unspecified", "baseUnit": "unspecified", "suffix": " hrs", "decimals": 1, "transform": "auto", "input": "value" }]
+        },
+        "querySettings": {}
+      },
+      "4": {
+        "type": "data",
+        "title": "Median MTTR (hours)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize median_mttr_hours = percentile(duration_hours, 50)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": { "showSparkLine": false, "alignment": "center" },
+          "unitsOverrides": [{ "identifier": "median_mttr_hours", "unitCategory": "unspecified", "baseUnit": "unspecified", "suffix": " hrs", "decimals": 1, "transform": "auto", "input": "value" }]
+        },
+        "querySettings": {}
+      },
+      "5": {
+        "type": "data",
+        "title": "P95 MTTR (hours)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize p95_mttr_hours = percentile(duration_hours, 95)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": { "showSparkLine": false, "alignment": "center" },
+          "unitsOverrides": [{ "identifier": "p95_mttr_hours", "unitCategory": "unspecified", "baseUnit": "unspecified", "suffix": " hrs", "decimals": 1, "transform": "auto", "input": "value" }]
+        },
+        "querySettings": {}
+      },
+      "6": {
+        "type": "markdown",
+        "content": "### Resolution Performance by Category\nAverage MTTR and problem distribution broken down by problem type. High MTTR in `AVAILABILITY` suggests infrastructure incidents are slow to remediate; high `ERROR` volume often indicates code-level regressions."
+      },
+      "7": {
+        "type": "data",
+        "title": "Avg MTTR by Category (hours)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize avg_mttr_hours = avg(duration_hours), problem_count = count(), by: { event.category }\n| sort avg_mttr_hours desc",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "8": {
+        "type": "data",
+        "title": "Closed Problems by Category",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| summarize problem_count = count(), by: { event.category }\n| sort problem_count desc",
+        "visualization": "donutChart",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "9": {
+        "type": "markdown",
+        "content": "### MTTR Trend Over Time\nWeekly average resolution time per category. A **downward slope** indicates your team is resolving problems faster. Spikes may indicate incidents that were difficult to diagnose or required escalation. Recommend setting the time picker to **90+ days** for a meaningful trend."
+      },
+      "10": {
+        "type": "data",
+        "title": "Weekly Avg MTTR by Category (hours)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize avg_mttr = avg(duration_hours), by: { week = bin(event.start, 7d), event.category }\n| sort week asc",
+        "visualization": "lineChart",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "11": {
+        "type": "data",
+        "title": "Weekly Problem Volume by Category",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate)\n| summarize problem_count = count(), by: { week = bin(event.start, 7d), event.category }\n| sort week asc",
+        "visualization": "lineChart",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "12": {
+        "type": "markdown",
+        "content": "### Problem Detail\n**Top Root Cause Entities** — which services, hosts, or resources trigger the most problems. **Longest-Duration Problems** — individual closed problems sorted by resolution time, useful for identifying outliers that skew your MTTR."
+      },
+      "13": {
+        "type": "data",
+        "title": "Top Root Cause Entities",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate)\n| filter isNotNull(root_cause_entity_name)\n| summarize problem_count = count(), avg_mttr_hours = avg(toLong(event.end - event.start) / 3600000000000), by: { root_cause_entity_name, event.category }\n| sort problem_count desc\n| limit 20",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "14": {
+        "type": "data",
+        "title": "Longest Duration Problems",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| fields display_id, event.name, event.category, root_cause_entity_name, duration_hours, event.start\n| sort duration_hours desc\n| limit 20",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "15": {
+        "type": "markdown",
+        "content": "### MTTR Detail Table\nPer-problem-title breakdown: average MTTR and occurrence count. Sort by `avg_mttr_hours` descending to find which problem types are hardest to resolve. Sort by `problem_count` to find the most frequent issues."
+      },
+      "16": {
+        "type": "data",
+        "title": "MTTR by Problem Name",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize avg_mttr_hours = avg(duration_hours), problem_count = count(), by: { event.name, event.category }\n| sort avg_mttr_hours desc\n| limit 50",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {}
+      }
+    },
+    "layouts": {
+      "1":  { "x": 0,  "y": 0,  "w": 24, "h": 2  },
+      "2":  { "x": 0,  "y": 2,  "w": 6,  "h": 5  },
+      "3":  { "x": 6,  "y": 2,  "w": 6,  "h": 5  },
+      "4":  { "x": 12, "y": 2,  "w": 6,  "h": 5  },
+      "5":  { "x": 18, "y": 2,  "w": 6,  "h": 5  },
+      "6":  { "x": 0,  "y": 7,  "w": 24, "h": 1  },
+      "7":  { "x": 0,  "y": 8,  "w": 12, "h": 8  },
+      "8":  { "x": 12, "y": 8,  "w": 12, "h": 8  },
+      "9":  { "x": 0,  "y": 16, "w": 24, "h": 1  },
+      "10": { "x": 0,  "y": 17, "w": 24, "h": 8  },
+      "11": { "x": 0,  "y": 25, "w": 24, "h": 8  },
+      "12": { "x": 0,  "y": 33, "w": 24, "h": 1  },
+      "13": { "x": 0,  "y": 34, "w": 12, "h": 10 },
+      "14": { "x": 12, "y": 34, "w": 12, "h": 10 },
+      "15": { "x": 0,  "y": 44, "w": 24, "h": 1  },
+      "16": { "x": 0,  "y": 45, "w": 24, "h": 10 }
+    }
+  }
+}
