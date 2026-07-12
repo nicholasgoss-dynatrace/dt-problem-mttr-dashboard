@@ -88,7 +88,7 @@
         "type": "data",
         "title": "Weekly Problem Volume by Category",
         "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate)\n| summarize problem_count = count(), by: { week = bin(event.start, 7d), event.category }\n| sort week asc",
-        "visualization": "lineChart",
+        "visualization": "barChart",
         "visualizationSettings": {},
         "querySettings": {}
       },
