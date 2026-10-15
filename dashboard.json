@@ -3,145 +3,406 @@
   "type": "dashboard",
   "content": {
     "version": 21,
-    "variables": [],
+    "variables": [
+      {
+        "version": 1,
+        "key": "Category",
+        "type": "csv",
+        "input": "AVAILABILITY,ERROR,SLOWDOWN,RESOURCE,CUSTOM",
+        "visible": true,
+        "editable": true,
+        "multiple": true,
+        "defaultValue": "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      },
+      {
+        "version": 1,
+        "key": "Granularity",
+        "type": "csv",
+        "input": "7d,1d",
+        "visible": true,
+        "editable": true,
+        "multiple": false
+      },
+      {
+        "version": 1,
+        "key": "SLOThreshold",
+        "type": "csv",
+        "input": "1,2,4,8,24",
+        "visible": true,
+        "editable": true,
+        "multiple": false
+      }
+    ],
     "tiles": {
       "1": {
         "type": "markdown",
-        "content": "## Problem MTTR Analysis\nTrack **Mean Time to Resolve** for Davis AI-detected problems across your environment. All tiles use the **dashboard time picker** — set to 30–90 days for meaningful trend data. Only **CLOSED**, non-duplicate problems are included in MTTR calculations.\n\n**Categories:** `AVAILABILITY` &nbsp;·&nbsp; `ERROR` &nbsp;·&nbsp; `SLOWDOWN` &nbsp;·&nbsp; `RESOURCE_CONTENTION` &nbsp;·&nbsp; `CUSTOM_ALERT`"
+        "content": "## Problem MTTR Analysis\nTrack **Mean Time to Resolve** for Davis AI-detected problems. Set the time picker to **30–90 days** for meaningful trends. Only **CLOSED**, non-duplicate problems are included in MTTR calculations. Use **Category** to filter by problem type, **Granularity** to switch between weekly (`7d`) and daily (`1d`) trend buckets, and **SLOThreshold** (hours) to set your SLO target.\n\n**Categories:** `AVAILABILITY` &nbsp;·&nbsp; `ERROR` &nbsp;·&nbsp; `SLOWDOWN` &nbsp;·&nbsp; `RESOURCE` &nbsp;·&nbsp; `CUSTOM`"
       },
       "2": {
         "type": "data",
         "title": "Closed Problems",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| summarize total_problems = count()",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| summarize total_problems = count()",
         "visualization": "singleValue",
         "visualizationSettings": {
-          "singleValue": { "showSparkLine": false, "alignment": "center" }
+          "singleValue": { "showSparkLine": false, "alignment": "center", "dataMapping": { "label": null } }
+        },
+        "querySettings": {}
+      },
+      "19": {
+        "type": "data",
+        "title": "Closed Problems / Period",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| summarize problem_count = count(), by: { period = bin(event.start, $Granularity:noquote) }\n| sort period asc",
+        "visualization": "barChart",
+        "visualizationSettings": {
+          "legend": { "showLegend": false },
+          "colorModeType": { "colorPalette": "categorical", "seriesCustomColors": [{ "key": "problem_count", "color": "#1b8cff" }] },
+          "coloring": {
+            "thresholdRules": [
+              { "color": "#22c55e", "comparator": "<", "value": 1000 },
+              { "color": "#eab308", "comparator": ">=", "value": 1000 },
+              { "color": "#ef4444", "comparator": ">=", "value": 3000 }
+            ]
+          }
         },
         "querySettings": {}
       },
       "3": {
         "type": "data",
         "title": "Avg MTTR (hours)",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize avg_mttr_hours = avg(duration_hours)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize avg_mttr_hours = avg(duration_hours)",
         "visualization": "singleValue",
         "visualizationSettings": {
-          "singleValue": { "showSparkLine": false, "alignment": "center" },
+          "singleValue": { "showSparkLine": false, "alignment": "center", "dataMapping": { "label": null } },
           "unitsOverrides": [{ "identifier": "avg_mttr_hours", "unitCategory": "unspecified", "baseUnit": "unspecified", "suffix": " hrs", "decimals": 1, "transform": "auto", "input": "value" }]
+        },
+        "querySettings": {}
+      },
+      "20": {
+        "type": "data",
+        "title": "Avg MTTR / Period (hrs)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize avg_mttr_hours = avg(duration_hours), by: { period = bin(event.start, $Granularity:noquote) }\n| sort period asc",
+        "visualization": "barChart",
+        "visualizationSettings": {
+          "legend": { "showLegend": false },
+          "colorModeType": { "colorPalette": "categorical", "seriesCustomColors": [{ "key": "avg_mttr_hours", "color": "#f97316" }] },
+          "coloring": {
+            "thresholdRules": [
+              { "color": "#22c55e", "comparator": "<", "value": 2 },
+              { "color": "#eab308", "comparator": ">=", "value": 2 },
+              { "color": "#ef4444", "comparator": ">=", "value": 8 }
+            ]
+          }
         },
         "querySettings": {}
       },
       "4": {
         "type": "data",
         "title": "Median MTTR (hours)",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize median_mttr_hours = percentile(duration_hours, 50)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize median_mttr_hours = percentile(duration_hours, 50)",
         "visualization": "singleValue",
         "visualizationSettings": {
-          "singleValue": { "showSparkLine": false, "alignment": "center" },
+          "singleValue": { "showSparkLine": false, "alignment": "center", "dataMapping": { "label": null } },
           "unitsOverrides": [{ "identifier": "median_mttr_hours", "unitCategory": "unspecified", "baseUnit": "unspecified", "suffix": " hrs", "decimals": 1, "transform": "auto", "input": "value" }]
+        },
+        "querySettings": {}
+      },
+      "21": {
+        "type": "data",
+        "title": "Median MTTR / Period (hrs)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize median_mttr_hours = percentile(duration_hours, 50), by: { period = bin(event.start, $Granularity:noquote) }\n| sort period asc",
+        "visualization": "barChart",
+        "visualizationSettings": {
+          "legend": { "showLegend": false },
+          "colorModeType": { "colorPalette": "categorical", "seriesCustomColors": [{ "key": "median_mttr_hours", "color": "#eab308" }] },
+          "coloring": {
+            "thresholdRules": [
+              { "color": "#22c55e", "comparator": "<", "value": 1 },
+              { "color": "#eab308", "comparator": ">=", "value": 1 },
+              { "color": "#ef4444", "comparator": ">=", "value": 4 }
+            ]
+          }
         },
         "querySettings": {}
       },
       "5": {
         "type": "data",
         "title": "P95 MTTR (hours)",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize p95_mttr_hours = percentile(duration_hours, 95)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize p95_mttr_hours = percentile(duration_hours, 95)",
         "visualization": "singleValue",
         "visualizationSettings": {
-          "singleValue": { "showSparkLine": false, "alignment": "center" },
+          "singleValue": { "showSparkLine": false, "alignment": "center", "dataMapping": { "label": null } },
           "unitsOverrides": [{ "identifier": "p95_mttr_hours", "unitCategory": "unspecified", "baseUnit": "unspecified", "suffix": " hrs", "decimals": 1, "transform": "auto", "input": "value" }]
+        },
+        "querySettings": {}
+      },
+      "22": {
+        "type": "data",
+        "title": "P95 MTTR / Period (hrs)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize p95_mttr_hours = percentile(duration_hours, 95), by: { period = bin(event.start, $Granularity:noquote) }\n| sort period asc",
+        "visualization": "barChart",
+        "visualizationSettings": {
+          "legend": { "showLegend": false },
+          "colorModeType": { "colorPalette": "categorical", "seriesCustomColors": [{ "key": "p95_mttr_hours", "color": "#ef4444" }] },
+          "coloring": {
+            "thresholdRules": [
+              { "color": "#22c55e", "comparator": "<", "value": 4 },
+              { "color": "#eab308", "comparator": ">=", "value": 4 },
+              { "color": "#ef4444", "comparator": ">=", "value": 24 }
+            ]
+          }
+        },
+        "querySettings": {}
+      },
+      "17": {
+        "type": "data",
+        "title": "Total Users Affected",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter isNotNull(dt.davis.affected_users_count)\n| filter in(event.category, array($Category))\n| summarize total_users_affected = sum(dt.davis.affected_users_count)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": { "showSparkLine": false, "alignment": "center", "dataMapping": { "label": null } }
+        },
+        "querySettings": {}
+      },
+      "23": {
+        "type": "data",
+        "title": "Users Affected / Period",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter isNotNull(dt.davis.affected_users_count)\n| filter in(event.category, array($Category))\n| summarize total_users_affected = sum(dt.davis.affected_users_count), by: { period = bin(event.start, $Granularity:noquote) }\n| sort period asc",
+        "visualization": "barChart",
+        "visualizationSettings": {
+          "legend": { "showLegend": false },
+          "colorModeType": { "colorPalette": "categorical", "seriesCustomColors": [{ "key": "total_users_affected", "color": "#a855f7" }] },
+          "coloring": {
+            "thresholdRules": [
+              { "color": "#22c55e", "comparator": "<", "value": 50000 },
+              { "color": "#eab308", "comparator": ">=", "value": 50000 },
+              { "color": "#ef4444", "comparator": ">=", "value": 200000 }
+            ]
+          }
+        },
+        "querySettings": {}
+      },
+      "28": {
+        "type": "markdown",
+        "content": "### SLO & Active Monitoring\n**% Breaching SLO** — fraction of closed problems that exceeded the **SLOThreshold** (hours) variable. **Breach Rate Trend** — tracks whether SLO compliance is improving over time. **Active Problem Aging** — all currently open problems sorted by how long they have been open; any row approaching your SLO threshold warrants immediate attention."
+      },
+      "26": {
+        "type": "data",
+        "title": "Currently Active Problems",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"ACTIVE\"\n| filter in(event.category, array($Category))\n| summarize active_count = count()",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": { "showSparkLine": false, "alignment": "center", "dataMapping": { "label": null } }
+        },
+        "querySettings": {}
+      },
+      "24": {
+        "type": "data",
+        "title": "% Problems Breaching SLO",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize total = count(), breached = countIf(duration_hours > $SLOThreshold:noquote)\n| fieldsAdd breach_pct = toDouble(breached) / toDouble(total) * 100\n| fields breach_pct",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": { "showSparkLine": false, "alignment": "center", "dataMapping": { "label": null } },
+          "unitsOverrides": [{ "identifier": "breach_pct", "unitCategory": "unspecified", "baseUnit": "unspecified", "suffix": " %", "decimals": 1, "transform": "auto", "input": "value" }]
+        },
+        "querySettings": {}
+      },
+      "25": {
+        "type": "data",
+        "title": "SLO Breach Rate / Period (%)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize total = count(), breached = countIf(duration_hours > $SLOThreshold:noquote), by: { period = bin(event.start, $Granularity:noquote) }\n| fieldsAdd breach_pct = toDouble(breached) / toDouble(total) * 100\n| fields period, breach_pct\n| sort period asc",
+        "visualization": "barChart",
+        "visualizationSettings": {
+          "legend": { "showLegend": false },
+          "colorModeType": { "colorPalette": "categorical", "seriesCustomColors": [{ "key": "breach_pct", "color": "#ef4444" }] }
+        },
+        "querySettings": {}
+      },
+      "27": {
+        "type": "data",
+        "title": "Active Problem Aging",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"ACTIVE\"\n| filter in(event.category, array($Category))\n| fieldsAdd age_hours = toDouble(toLong(now() - event.start)) / 3600000000000\n| fields display_id, event.name, event.category, root_cause_entity_name, dt.davis.affected_users_count, age_hours\n| sort age_hours desc\n| limit 20",
+        "visualization": "table",
+        "visualizationSettings": {
+          "table": { "rowDensity": "condensed", "columnWidthStrategy": "content" }
         },
         "querySettings": {}
       },
       "6": {
         "type": "markdown",
-        "content": "### Resolution Performance by Category\nAverage MTTR and problem distribution broken down by problem type. High MTTR in `AVAILABILITY` suggests infrastructure incidents are slow to remediate; high `ERROR` volume often indicates code-level regressions."
+        "content": "### Resolution Performance by Category\nCompare **resolution speed**, **problem distribution**, and **user impact** across categories. High MTTR in `AVAILABILITY` signals slow infrastructure recovery; high `ERROR` volume often indicates recurring code regressions."
       },
       "7": {
         "type": "data",
         "title": "Avg MTTR by Category (hours)",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize avg_mttr_hours = avg(duration_hours), problem_count = count(), by: { event.category }\n| sort avg_mttr_hours desc",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize avg_mttr_hours = avg(duration_hours), by: { event.category }\n| sort avg_mttr_hours desc",
         "visualization": "categoricalBarChart",
         "visualizationSettings": {},
         "querySettings": {}
       },
       "8": {
         "type": "data",
-        "title": "Closed Problems by Category",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| summarize problem_count = count(), by: { event.category }\n| sort problem_count desc",
+        "title": "Problem Distribution by Category",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| summarize problem_count = count(), by: { event.category }\n| sort problem_count desc",
         "visualization": "donutChart",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "18": {
+        "type": "data",
+        "title": "Avg Users Affected by Category",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter isNotNull(dt.davis.affected_users_count)\n| filter in(event.category, array($Category))\n| summarize avg_users_affected = avg(dt.davis.affected_users_count), by: { event.category }\n| sort avg_users_affected desc",
+        "visualization": "categoricalBarChart",
         "visualizationSettings": {},
         "querySettings": {}
       },
       "9": {
         "type": "markdown",
-        "content": "### MTTR Trend Over Time\nWeekly average resolution time per category. A **downward slope** indicates your team is resolving problems faster. Spikes may indicate incidents that were difficult to diagnose or required escalation. Recommend setting the time picker to **90+ days** for a meaningful trend."
+        "content": "### MTTR Trends\n**Left — Avg vs P95:** A downward slope means faster resolution; a narrowing gap between avg and P95 means fewer long-tail incidents. &nbsp;**Right — Volume by category:** Spot increases in problem creation rate. Toggle **Granularity** between `7d` and `1d` to zoom in or out."
       },
       "10": {
         "type": "data",
-        "title": "Weekly Avg MTTR by Category (hours)",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize avg_mttr = avg(duration_hours), by: { week = bin(event.start, 7d), event.category }\n| sort week asc",
+        "title": "MTTR Trend — Avg vs P95 (hours)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize avg_mttr = avg(duration_hours), p95_mttr = percentile(duration_hours, 95), by: { period = bin(event.start, $Granularity:noquote) }\n| sort period asc",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
       },
       "11": {
         "type": "data",
-        "title": "Weekly Problem Volume by Category",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate)\n| summarize problem_count = count(), by: { week = bin(event.start, 7d), event.category }\n| sort week asc",
+        "title": "Problem Volume by Category",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate)\n| filter in(event.category, array($Category))\n| summarize problem_count = count(), by: { period = bin(event.start, $Granularity:noquote), event.category }\n| sort period asc",
         "visualization": "barChart",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "31": {
+        "type": "markdown",
+        "content": "### Period-over-Period Comparison\nCompares the **last 30 days** to the **prior 30 days**, regardless of the dashboard time picker. A taller bar in the current period for avg MTTR means resolution is slowing; a taller problem count bar means detection volume is increasing."
+      },
+      "29": {
+        "type": "data",
+        "title": "Avg MTTR — Current vs Prior 30d",
+        "query": "fetch dt.davis.problems, from:now()-60d, to:now()\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| fieldsAdd period = if(event.start >= now()-30d, \"Current 30d\", else: \"Prior 30d\")\n| summarize avg_mttr = avg(duration_hours), by: { period }\n| sort period asc",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "30": {
+        "type": "data",
+        "title": "Problem Count — Current vs Prior 30d",
+        "query": "fetch dt.davis.problems, from:now()-60d, to:now()\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd period = if(event.start >= now()-30d, \"Current 30d\", else: \"Prior 30d\")\n| summarize problem_count = count(), by: { period }\n| sort period asc",
+        "visualization": "categoricalBarChart",
         "visualizationSettings": {},
         "querySettings": {}
       },
       "12": {
         "type": "markdown",
-        "content": "### Problem Detail\n**Top Root Cause Entities** — which services, hosts, or resources trigger the most problems. **Longest-Duration Problems** — individual closed problems sorted by resolution time, useful for identifying outliers that skew your MTTR."
+        "content": "### Problem Detail\n**Top Root Cause Entities** — sorted by problem frequency, with avg MTTR and blast radius (avg entities dragged down per incident). **Longest-Duration Problems** — individual outliers that skew overall MTTR."
       },
       "13": {
         "type": "data",
         "title": "Top Root Cause Entities",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate)\n| filter isNotNull(root_cause_entity_name)\n| summarize problem_count = count(), avg_mttr_hours = avg(toLong(event.end - event.start) / 3600000000000), by: { root_cause_entity_name, event.category }\n| sort problem_count desc\n| limit 20",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate)\n| filter in(event.category, array($Category))\n| filter isNotNull(root_cause_entity_name)\n| summarize problem_count = count(), avg_mttr_hours = avg(toDouble(toLong(event.end - event.start)) / 3600000000000), avg_entities_affected = avg(arraySize(smartscape.affected_entities)), by: { root_cause_entity_name, event.category }\n| sort problem_count desc\n| limit 20",
         "visualization": "table",
-        "visualizationSettings": {},
+        "visualizationSettings": {
+          "table": { "rowDensity": "condensed", "columnWidthStrategy": "content" }
+        },
         "querySettings": {}
       },
       "14": {
         "type": "data",
         "title": "Longest Duration Problems",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| fields display_id, event.name, event.category, root_cause_entity_name, duration_hours, event.start\n| sort duration_hours desc\n| limit 20",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| fields display_id, event.name, event.category, root_cause_entity_name, duration_hours, event.start\n| sort duration_hours desc\n| limit 20",
         "visualization": "table",
-        "visualizationSettings": {},
+        "visualizationSettings": {
+          "table": { "rowDensity": "condensed", "columnWidthStrategy": "content" }
+        },
         "querySettings": {}
       },
       "15": {
         "type": "markdown",
-        "content": "### MTTR Detail Table\nPer-problem-title breakdown: average MTTR and occurrence count. Sort by `avg_mttr_hours` descending to find which problem types are hardest to resolve. Sort by `problem_count` to find the most frequent issues."
+        "content": "### MTTR by Problem Type\nAggregated by problem title — `avg_mttr_hours` shows which types are hardest to resolve; `problem_count` shows which are most frequent. `example_id` is a representative problem you can open for investigation."
       },
       "16": {
         "type": "data",
         "title": "MTTR by Problem Name",
-        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| fieldsAdd duration_hours = toLong(event.end - event.start) / 3600000000000\n| summarize avg_mttr_hours = avg(duration_hours), problem_count = count(), by: { event.name, event.category }\n| sort avg_mttr_hours desc\n| limit 50",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| summarize avg_mttr_hours = avg(duration_hours), problem_count = count(), example_id = min(display_id), by: { event.name, event.category }\n| sort avg_mttr_hours desc\n| limit 50",
         "visualization": "table",
+        "visualizationSettings": {
+          "table": { "rowDensity": "condensed", "columnWidthStrategy": "content" }
+        },
+        "querySettings": {}
+      },
+      "33": {
+        "type": "markdown",
+        "content": "### Resolution Time Distribution\nFrequency of problems in each MTTR bucket. A healthy environment has most volume under **30 min** with a long right tail. If the **4–8 hr** or **>24 hr** buckets dominate, those are where improvement efforts will have the highest impact."
+      },
+      "32": {
+        "type": "data",
+        "title": "MTTR Distribution",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| fieldsAdd bucket = if(duration_hours < 0.5, \"1. <30 min\", else: if(duration_hours < 1, \"2. 30-60 min\", else: if(duration_hours < 2, \"3. 1-2 hrs\", else: if(duration_hours < 4, \"4. 2-4 hrs\", else: if(duration_hours < 8, \"5. 4-8 hrs\", else: if(duration_hours < 24, \"6. 8-24 hrs\", else: \"7. >24 hrs\"))))))\n| summarize problem_count = count(), by: { bucket }\n| sort bucket asc",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "36": {
+        "type": "markdown",
+        "content": "### MTTR by Time of Day & Day of Week\nIdentifies **staffing gaps** — high MTTR on specific hours or days signals on-call coverage issues or knowledge silos. All times are **UTC**; adjust for your team's primary timezone when interpreting results."
+      },
+      "34": {
+        "type": "data",
+        "title": "Avg MTTR by Day of Week",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| fieldsAdd day_of_week = formatTimestamp(event.start, format:\"EEEE\")\n| summarize avg_mttr = avg(duration_hours), by: { day_of_week }\n| sort day_of_week asc",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "35": {
+        "type": "data",
+        "title": "Avg MTTR by Hour of Day (UTC)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"CLOSED\"\n| filter in(event.category, array($Category))\n| fieldsAdd duration_hours = toDouble(toLong(event.end - event.start)) / 3600000000000\n| fieldsAdd hour_of_day = formatTimestamp(event.start, format:\"HH\")\n| summarize avg_mttr = avg(duration_hours), by: { hour_of_day }\n| sort hour_of_day asc",
+        "visualization": "categoricalBarChart",
         "visualizationSettings": {},
         "querySettings": {}
       }
     },
     "layouts": {
       "1":  { "x": 0,  "y": 0,  "w": 24, "h": 2  },
-      "2":  { "x": 0,  "y": 2,  "w": 6,  "h": 5  },
-      "3":  { "x": 6,  "y": 2,  "w": 6,  "h": 5  },
-      "4":  { "x": 12, "y": 2,  "w": 6,  "h": 5  },
-      "5":  { "x": 18, "y": 2,  "w": 6,  "h": 5  },
-      "6":  { "x": 0,  "y": 7,  "w": 24, "h": 1  },
-      "7":  { "x": 0,  "y": 8,  "w": 12, "h": 8  },
-      "8":  { "x": 12, "y": 8,  "w": 12, "h": 8  },
-      "9":  { "x": 0,  "y": 16, "w": 24, "h": 1  },
-      "10": { "x": 0,  "y": 17, "w": 24, "h": 8  },
-      "11": { "x": 0,  "y": 25, "w": 24, "h": 8  },
-      "12": { "x": 0,  "y": 33, "w": 24, "h": 1  },
-      "13": { "x": 0,  "y": 34, "w": 12, "h": 10 },
-      "14": { "x": 12, "y": 34, "w": 12, "h": 10 },
-      "15": { "x": 0,  "y": 44, "w": 24, "h": 1  },
-      "16": { "x": 0,  "y": 45, "w": 24, "h": 10 }
+      "2":  { "x": 0,  "y": 2,  "w": 4,  "h": 7  },
+      "19": { "x": 4,  "y": 2,  "w": 8,  "h": 7  },
+      "3":  { "x": 12, "y": 2,  "w": 4,  "h": 7  },
+      "20": { "x": 16, "y": 2,  "w": 8,  "h": 7  },
+      "4":  { "x": 0,  "y": 9,  "w": 4,  "h": 7  },
+      "21": { "x": 4,  "y": 9,  "w": 8,  "h": 7  },
+      "5":  { "x": 12, "y": 9,  "w": 4,  "h": 7  },
+      "22": { "x": 16, "y": 9,  "w": 8,  "h": 7  },
+      "17": { "x": 0,  "y": 16, "w": 6,  "h": 7  },
+      "23": { "x": 6,  "y": 16, "w": 18, "h": 7  },
+      "28": { "x": 0,  "y": 23, "w": 24, "h": 1  },
+      "26": { "x": 0,  "y": 24, "w": 4,  "h": 6  },
+      "24": { "x": 4,  "y": 24, "w": 4,  "h": 6  },
+      "25": { "x": 8,  "y": 24, "w": 16, "h": 6  },
+      "27": { "x": 0,  "y": 30, "w": 24, "h": 8  },
+      "6":  { "x": 0,  "y": 38, "w": 24, "h": 1  },
+      "7":  { "x": 0,  "y": 39, "w": 8,  "h": 8  },
+      "8":  { "x": 8,  "y": 39, "w": 8,  "h": 8  },
+      "18": { "x": 16, "y": 39, "w": 8,  "h": 8  },
+      "9":  { "x": 0,  "y": 47, "w": 24, "h": 1  },
+      "10": { "x": 0,  "y": 48, "w": 12, "h": 8  },
+      "11": { "x": 12, "y": 48, "w": 12, "h": 8  },
+      "31": { "x": 0,  "y": 56, "w": 24, "h": 1  },
+      "29": { "x": 0,  "y": 57, "w": 12, "h": 8  },
+      "30": { "x": 12, "y": 57, "w": 12, "h": 8  },
+      "12": { "x": 0,  "y": 65, "w": 24, "h": 1  },
+      "13": { "x": 0,  "y": 66, "w": 12, "h": 10 },
+      "14": { "x": 12, "y": 66, "w": 12, "h": 10 },
+      "15": { "x": 0,  "y": 76, "w": 24, "h": 1  },
+      "16": { "x": 0,  "y": 77, "w": 24, "h": 10 },
+      "33": { "x": 0,  "y": 87, "w": 24, "h": 1  },
+      "32": { "x": 0,  "y": 88, "w": 24, "h": 8  },
+      "36": { "x": 0,  "y": 96, "w": 24, "h": 1  },
+      "34": { "x": 0,  "y": 97, "w": 12, "h": 8  },
+      "35": { "x": 12, "y": 97, "w": 12, "h": 8  }
     }
   }
 }
