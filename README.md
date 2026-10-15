@@ -2,6 +2,8 @@
 
 A ready-to-deploy Dynatrace dashboard for tracking **Mean Time to Resolve** (MTTR) for Davis AI-detected problems. Works on any Dynatrace SaaS environment with Grail. No configuration required — deploy and open.
 
+![Problem MTTR Analysis Dashboard](ProblemMTTRAnalysis.png)
+
 ## What It Shows
 
 ### KPI Pairs (top of dashboard)
